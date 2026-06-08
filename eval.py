@@ -1,6 +1,6 @@
 from generate import generate
 import os
-from query import embed, retrieveTopK
+from query import embed, retrieveTopK, hybrid_search
 from models import ChunkResult
 from openai import OpenAI
 from dotenv import load_dotenv
@@ -74,7 +74,7 @@ if __name__ == "__main__":
         print(f"標準答案: {data['ground_truth']}\n")
         question = data['question']
         vector = embed(question)
-        results = retrieveTopK(vector,3)
+        results = hybrid_search(question,10)
         llm_answer = generate(question, results)
         print(f"LLM回答: {llm_answer}")
         print(score_with_llm(question,data['ground_truth'],llm_answer))
