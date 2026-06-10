@@ -81,16 +81,69 @@ def agentic_rag(question: str) -> str:
     
     return final_answer
 
+def run_agent(question: str) -> str:
+    # 1. 定義工具清單
+    tools = [
+        {
+            "type": "function",
+            "function": {
+                "name": "hybrid_search",
+                "description": "當需要從企業內部文件中查詢特定知識或資訊時呼叫此函數",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "query": {"type": "string", "description": "使用者的查詢語句"},
+                        "k": {"type": "integer", "description": "檢索的片段數量"}
+                    },
+                    "required": ["query"]
+                }
+            }
+        }
+    ]
+
+    # 2. 第一次呼叫 LLM，詢問是否需要使用工具
+    messages = [{"role": "user", "content": question}]
+    
+    response = client.chat.completions.create(
+        model=model,
+        messages=messages,
+        tools=tools,
+        tool_choice="auto" # 讓 LLM 自己決定
+    )
+
+    response_message = response.choices[0].message
+    tool_calls = response_message.tool_calls
+
+    # 3. 判斷是否需要呼叫工具
+    if tool_calls:
+        print(f"Agent 決定呼叫工具: {tool_calls[0].function.name}")
+        
+        # 這裡執行工具 (這裡直接呼叫 query.py 的函數)
+        function_args = json.loads(tool_calls[0].function.arguments)
+        search_results = hybrid_search(query=function_args.get("query"), k=5)
+        
+        # 將工具執行結果餵回給 LLM
+        context = "\n".join([chunk.text for chunk in search_results])
+        messages.append(response_message)
+        messages.append({
+            "tool_call_id": tool_calls[0].id,
+            "role": "tool",
+            "name": "hybrid_search",
+            "content": context
+        })
+        
+        # 4. 最後一次呼叫 LLM 產生最終答案
+        final_response = client.chat.completions.create(
+            model=model,
+            messages=messages
+        )
+        return final_response.choices[0].message.content
+    
+    else:
+        # 不需要搜尋，直接回答 (例如問「你好嗎？」)
+        return response_message.content
+
+
 if __name__ == "__main__":
-    # 1. 定義一個複雜問題來測試 Agent 的能力
-    question = "在雙軌制計畫中，RAG 試點的 MVP 預期開發週期是多久？而在第幾個月的里程碑需要決定是否擴展或加入 Agent？"
-    
-    # 2. 直接執行 Agentic RAG 流程
-    # 這個函數內部已經包含了 decompose_query、hybrid_search 與 generate
-    answer = agentic_rag(question)
-    
-    # 3. 輸出最終結果
-    print("\n" + "="*30)
-    print("【最終生成答案】")
+    answer = run_agent("在雙軌制計畫中，RAG 試點的 MVP 預期開發週期是多久？")
     print(answer)
-    print("="*30)
