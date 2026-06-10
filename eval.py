@@ -1,5 +1,5 @@
 from generate import generate
-import os
+import os, json, datetime
 from query import embed, retrieveTopK, hybrid_search
 from models import ChunkResult
 from openai import OpenAI
@@ -65,16 +65,69 @@ def score_with_llm(question, ground_truth, generated):
         return f"呼叫 LLM 時發生錯誤: {e}"
 
 
+def save_eval_results(new_results):
+    filename = "eval_history.json"
+    history = []
+    
+    # 讀取現有紀錄
+    if os.path.exists(filename):
+        with open(filename, "r", encoding="utf-8") as f:
+            try:
+                history = json.load(f)
+            except:
+                history = []
+    
+    # 加入本次測試紀錄
+    history.append(new_results)
+    
+    # 寫回檔案
+    with open(filename, "w", encoding="utf-8") as f:
+        json.dump(history, f, indent=4, ensure_ascii=False)
+    print(f"\n紀錄已儲存至 {filename}")
+
+
+
 
 if __name__ == "__main__":
     print(f"成功載入測試資料集，共包含 {len(eval_dataset)} 個測試題目。\n")
+    
+    # 初始化本次的評估報告
+    report = {
+        "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "method": "Hybrid Search (Vector + BM25)",
+        "details": []
+    }
+    
+    total_score = 0
+    
     for i, data in enumerate(eval_dataset, 1):
         print(f"【測試題目 {i}】")
-        print(f"問題: {data['question']}")
-        print(f"標準答案: {data['ground_truth']}\n")
         question = data['question']
-        vector = embed(question)
-        results = hybrid_search(question,10)
+        
+        # 檢索與生成
+        results = hybrid_search(question, k=10)
         llm_answer = generate(question, results)
+        score_str = score_with_llm(question, data['ground_truth'], llm_answer)
+        
+        # 確保分數是數值型態
+        try:
+            score = float(score_str)
+        except:
+            score = 0.0
+            
+        total_score += score
+        
+        # 存入本次報告明細
+        report["details"].append({
+            "question": question,
+            "answer": llm_answer,
+            "score": score
+        })
+        
         print(f"LLM回答: {llm_answer}")
-        print(score_with_llm(question,data['ground_truth'],llm_answer))
+        print(f"分數: {score}\n")
+
+    # 計算平均分並存檔
+    report["average_score"] = total_score / len(eval_dataset)
+    save_eval_results(report)
+    print(f"=== 本次平均分數: {report['average_score']:.2f} ===")

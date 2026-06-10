@@ -13,3 +13,6 @@ wheels/
 #排除向量資料庫
 chroma_db/
 docs/
+
+#排除eval json
+eval_history.json
