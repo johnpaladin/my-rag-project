@@ -4,6 +4,7 @@ from query import embed, retrieveTopK, hybrid_search
 from models import ChunkResult
 from openai import OpenAI
 from dotenv import load_dotenv
+from agent import agentic_rag
 
 load_dotenv()
 base_url = os.getenv("LLM_BASE_URL")
@@ -94,7 +95,7 @@ if __name__ == "__main__":
     # 初始化本次的評估報告
     report = {
         "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "method": "Hybrid Search (Vector + BM25)",
+        "method": "Agentic RAG (Query Decomposition + Hybrid Search)",
         "details": []
     }
     
@@ -105,8 +106,7 @@ if __name__ == "__main__":
         question = data['question']
         
         # 檢索與生成
-        results = hybrid_search(question, k=10)
-        llm_answer = generate(question, results)
+        llm_answer = agentic_rag(question)
         score_str = score_with_llm(question, data['ground_truth'], llm_answer)
         
         # 確保分數是數值型態

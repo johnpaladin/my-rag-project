@@ -44,3 +44,14 @@ python eval.py
 | **平均** | | **0.43** |
 
 > 題目 1 失敗原因：時程資訊分散在不同 chunk，k=3 未能撈到相關片段（retrieval failure，非 LLM failure）。
+
+
+## Eval 結果對比
+
+| 方法 | k值 | 平均分 |
+|------|-----|--------|
+| 純向量（baseline） | 3 | 0.43 |
+| Hybrid Search (BM25 + RRF) | 10 | 1.0 |
+| Agentic RAG (Query Decomposition) | 5×2 | 1.0 |
+
+> Hybrid 靠拉大 k 覆蓋更多 chunks；Agentic 靠拆問題讓每個子查詢更精準。
