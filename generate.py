@@ -3,6 +3,8 @@ from query import embed, retrieveTopK
 from models import ChunkResult
 from openai import OpenAI
 from dotenv import load_dotenv
+from typing import Generator
+
 
 load_dotenv()
 base_url = os.getenv("LLM_BASE_URL")
@@ -53,6 +55,45 @@ def generate(question: str, chunks: list[ChunkResult]) -> str:
     except Exception as e:
         return f"呼叫 LLM 時發生錯誤: {e}"
 
+def generate_stream(question: str, chunks: list[ChunkResult]) -> Generator[str, None, None]:
+    # 1. 萃取並串接所有 chunk 的文字
+    context_list = []
+    for i, chunk in enumerate(chunks, 1):
+        context_list.append(f"[文件片段 {i} (來源: {chunk.filename})]:\n{chunk.text}")
+    
+    context = "\n\n".join(context_list)
+    
+    # 2. 組出 Prompt
+    prompt = f"""你是一個專業的 AI 助理。請根據下方提供的「參考文字」，嚴謹且精確地回答使用者的「問題」。
+如果參考文字中的資訊不足以回答問題，請直接說「根據目前資料無法回答」，切勿胡言亂語或憑空捏造。
+
+# 參考文字：
+{context}
+
+# 問題：
+{question}
+
+# 回答："""
+
+    # 3. 呼叫 LLM API，開啟 stream=True
+    try:
+        response = client.chat.completions.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": "你是一個只根據提供資料回答的誠實助理。"},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.2,
+            stream=True  # 👈 關鍵設定
+        )
+
+        # 透過 yield 一個字一個字吐出來
+        for chunk in response:
+            if chunk.choices[0].delta.content is not None:
+                yield chunk.choices[0].delta.content
+
+    except Exception as e:
+        yield f"呼叫 LLM 時發生錯誤: {e}"
 
 if __name__ == "__main__":
     question = "TPIX是什麼"
