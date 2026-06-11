@@ -4,7 +4,7 @@ from agent import agentic_rag  # 直接使用你已經寫好的 agentic_rag 邏�
 from fastapi.responses import StreamingResponse # 確保導入這個
 from query import hybrid_search
 from generate import generate_stream
-
+from guardrails import check_prompt_injection
 
 # 1. 定義 FastAPI 應用
 app = FastAPI(title="RAG Agentic API")
@@ -20,7 +20,12 @@ class QueryResponse(BaseModel):
 # 3. 定義 API 路徑
 @app.post("/ask", response_model=QueryResponse)
 async def ask_question(request: QueryRequest):
+   
+    if check_prompt_injection(request.question):
+        raise HTTPException(status_code=403, detail="偵測到不安全的請求，系統已阻擋。")
+
     try:
+
         # 呼叫你已經寫好的核心邏輯
         answer = agentic_rag(request.question)
         
